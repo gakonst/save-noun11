@@ -96,6 +96,19 @@ contract ContractTest is Test {
         bid.finalize();
     }
 
+    function outbid() private {
+        vm.label(enemy, "enemy");
+        hoax(enemy);
+
+        // they outbid us directly on the vault
+        vault.bid{value: 125 ether}();
+
+        // the bid gets its bid back in WETH
+        IERC20 weth = IERC20(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+        assertGt(weth.balanceOf(address(bid)), 105 ether);
+        assertLe(weth.balanceOf(address(bid)), 106 ether);
+    }
+
     function testCanSaveNoun11() public {
         endAuction();
 
@@ -115,22 +128,38 @@ contract ContractTest is Test {
         assertGt(balanceAfter - balanceBefore, 91 ether);
     }
 
-    function testOutbid() public {
-        vm.label(enemy, "enemy");
-        hoax(enemy);
-
-        // they outbid us directly on the vault
-        vault.bid{value: 125 ether}();
+    function testOutbidLose() public {
+        outbid();
 
         // end the auction
-        endAuction();
-
         // they now own the noun
+        endAuction();
         assertEq(nouns.ownerOf(noun11), enemy);
 
         // but at least we can get our ETH back
         bid.claim(bidder);
-        // for some reason we only get 94 ETH back?
-        assertEq(bidder.balance, 200 ether);
+        // the bidder claims its remaining ETH back
+        assertGt(bidder.balance, 94 ether);
+        assertLe(bidder.balance, 95 ether);
+        // how do you get the remaining WETH out of the party?
+        // can you not?!
+    }
+
+    function testOutbidRespondAndWin() public {
+        outbid();
+
+        // party bids again and wins, but requires contributing more,
+        // whereas ideally we'd be able to convert the returned
+        // WETH to ETH and re-contribute it.
+        // i.e. the re-contribution step wouldn't be needed
+        vm.startPrank(bidder);
+        vm.deal(bidder, 100 ether);
+        bid.contribute{value: 100 ether}();
+        bid.bid();
+        vm.stopPrank();
+
+        endAuction();
+        IERC20 partyVault = IERC20(bid.tokenVaultFactory().vaults(noun11PartyVault));
+        assertEq(nouns.ownerOf(noun11), address(partyVault));
     }
 }
