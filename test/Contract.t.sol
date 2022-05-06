@@ -7,6 +7,8 @@ import "src/Contract.sol";
 import "partybid/PartyBid.sol";
 import "partybid/PartyBidFactory.sol";
 
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+
 interface Nouns {
     function ownerOf(uint256) external view returns (address);
 }
@@ -22,13 +24,19 @@ contract ContractTest is Test {
     FractionalMarketWrapper fractional;
     PartyBid bid;
 
+    uint256 balanceBefore;
+
     // the noun we're testing with
     uint256 constant noun11 = 11;
     // https://etherscan.io/tx/0x14292770d0867c9d78234a11a7d5afe558dab4acf7269eb600674a034c54c350#eventlog
     uint256 constant noun11Vault = 275;
+    uint256 constant noun11PartyVault = 1278;
     // the market wrapper creator wants some rent
     address constant rentAddress = address(0x1234);
     uint256 constant rentBasisPoints = 200;
+
+    address constant bidder = address(0xbbbb);
+    address constant curator = address(0xcccc);
 
     // enable forge-std storage overwrites
     using stdStorage for StdStorage;
@@ -60,26 +68,50 @@ contract ContractTest is Test {
             "N11"
         );
         bid = PartyBid(_bid);
-    }
 
-    function testCanSaveNoun11() public {
         // some people contribute to the auction
+        hoax(bidder, 200 ether);
         bid.contribute{value: 200 ether}();
 
+        // save the balance before getting the change back
+        balanceBefore = address(bidder).balance;
+
         // bid!
+        vm.prank(bidder);
         bid.bid();
 
+        // add some labels for traces to be nicer
+        vm.label(_bid, "PartyBid");
+        vm.label(rentAddress, "Rent");
+        vm.label(bidder, "Bidder");
+        vm.label(curator, "Curator");
+        vm.label(address(vault), "Vault");
+    }
+
+    // helper to fast forward to the end of the auction
     function endAuction() private {
         uint256 endTime = vault.auctionEnd();
         vm.warp(endTime);
-
-        // wrap it up
         bid.finalize();
     }
 
     function testCanSaveNoun11() public {
         endAuction();
-        // assertEq(nouns.ownerOf(noun11, address(bid));
+
+        // the partydao deployed vault owns the token
+        IERC20 partyVault = IERC20(bid.tokenVaultFactory().vaults(noun11PartyVault));
+        assertEq(nouns.ownerOf(noun11), address(partyVault));
+
+
+        bid.claim(bidder);
+
+        // check that we own most of the supply, minus the fees
+        assertGt(partyVault.balanceOf(bidder), 954 * partyVault.totalSupply() / 1000);
+
+        uint256 balanceAfter = address(bidder).balance;
+
+        // 200 - ~109 ETH = 91 eth received back
+        assertGt(balanceAfter - balanceBefore, 91 ether);
     }
 
     // TODO: Test refunds with WETH edge case
