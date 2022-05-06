@@ -67,8 +67,8 @@ contract FractionalMarketWrapper is IMarketWrapper {
         if (price == 0) {
             return vault.reservePrice();
         } else {
-            // bump the price a little bit
-            uint256 pctIncrease = settings.minBidIncrease() + 1000;
+            // bump the price just enough
+            uint256 pctIncrease = settings.minBidIncrease() + 1001;
             // divide by 1000 to re-normalize the pct
             return price * pctIncrease / 1000;
         }
