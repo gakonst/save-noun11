@@ -13,10 +13,14 @@ enum State { inactive, live, ended, redeemed }
 
 // A specific fractional auction
 interface FractionalVault {
-    function auctionState() external view returns (State);
-    function end() external;
+    function start() payable external;
     function bid() payable external;
+    function end() external;
+
+    function auctionEnd() external view returns (uint256);
+    function auctionState() external view returns (State);
     function winning() external view returns (address);
+    function reservePrice() external view returns (uint256);
     function livePrice() external view returns (uint256);
 }
 
@@ -35,7 +39,12 @@ contract FractionalMarketWrapper is IMarketWrapper {
 
     // if the contract has any WETH, unwrap it into ETH?
     function bid(uint256 auctionId, uint256 bidAmount) external {
-        factory.vaults(auctionId).bid{value: bidAmount}();
+        FractionalVault vault = factory.vaults(auctionId);
+        if (vault.auctionState() == State.inactive) {
+            vault.start{value: bidAmount}();
+        } else {
+            vault.bid{value: bidAmount}();
+        }
     }
 
     function finalize(uint256 auctionId) external override {
@@ -51,11 +60,18 @@ contract FractionalMarketWrapper is IMarketWrapper {
     }
 
     function getMinimumBid(uint256 auctionId) external view override returns (uint256) {
-        // bump the price a little bit
-        uint256 pctIncrease = settings.minBidIncrease() + 1000;
-        uint256 price = factory.vaults(auctionId).livePrice();
-        // divide by 1000 to re-normalize the pct
-        return price * pctIncrease / 1000;
+        FractionalVault vault = factory.vaults(auctionId);
+        uint256 price = vault.livePrice();
+
+        // use the reserve price if this is the first bid
+        if (price == 0) {
+            return vault.reservePrice();
+        } else {
+            // bump the price a little bit
+            uint256 pctIncrease = settings.minBidIncrease() + 1000;
+            // divide by 1000 to re-normalize the pct
+            return price * pctIncrease / 1000;
+        }
     }
 
     function auctionIdMatchesToken(
