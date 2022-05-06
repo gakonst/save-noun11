@@ -37,6 +37,7 @@ contract ContractTest is Test {
 
     address constant bidder = address(0xbbbb);
     address constant curator = address(0xcccc);
+    address constant enemy = address(0xdddd);
 
     // enable forge-std storage overwrites
     using stdStorage for StdStorage;
@@ -114,5 +115,22 @@ contract ContractTest is Test {
         assertGt(balanceAfter - balanceBefore, 91 ether);
     }
 
-    // TODO: Test refunds with WETH edge case
+    function testOutbid() public {
+        vm.label(enemy, "enemy");
+        hoax(enemy);
+
+        // they outbid us directly on the vault
+        vault.bid{value: 125 ether}();
+
+        // end the auction
+        endAuction();
+
+        // they now own the noun
+        assertEq(nouns.ownerOf(noun11), enemy);
+
+        // but at least we can get our ETH back
+        bid.claim(bidder);
+        // for some reason we only get 94 ETH back?
+        assertEq(bidder.balance, 200 ether);
+    }
 }
