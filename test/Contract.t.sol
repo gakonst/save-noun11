@@ -16,6 +16,7 @@ contract ContractTest is Test {
     PartyBidFactory constant partyFactory = PartyBidFactory(0x0accf637e4F05eeA8B1D215C8C9e9E576dC63D33);
     PartyBid constant party = PartyBid(0x18B9F4aD986A0E0777a2E1A652a4499C8EE3E077);
     Nouns constant nouns = Nouns(0x9C8fF314C9Bc7F6e59A9d9225Fb22946427eDC03);
+    FractionalVault vault;
 
     // the fractional wrapper
     FractionalMarketWrapper fractional;
@@ -29,9 +30,22 @@ contract ContractTest is Test {
     address constant rentAddress = address(0x1234);
     uint256 constant rentBasisPoints = 200;
 
+    // enable forge-std storage overwrites
+    using stdStorage for StdStorage;
+
     function setUp() public {
         // deploy the market wrapper
         fractional = new FractionalMarketWrapper();
+        vault = fractional.factory().vaults(noun11Vault);
+
+        // override the `curator` address on the fractional vaults
+        // to be non-zero. the currently deployed Fractional version
+        // does not have the `if curator != 0x0` check, and that causes
+        // openzeppelin to choke on transfers to 0x0.
+        // https://github.com/fractional-company/contracts/commit/5003fc2189a5998dcfaddcb83ddcbbb53ec9c628
+        stdstore.target(address(vault))
+            .sig(FractionalVault.curator.selector)
+            .checked_write(address(0x01));
 
         // start the party
         address _bid = partyFactory.startParty(
@@ -55,14 +69,16 @@ contract ContractTest is Test {
         // bid!
         bid.bid();
 
-        // move the time to the end of the auction so we can finalize
-        FractionalVault vault = fractional.factory().vaults(noun11Vault);
+    function endAuction() private {
         uint256 endTime = vault.auctionEnd();
         vm.warp(endTime);
 
         // wrap it up
         bid.finalize();
+    }
 
+    function testCanSaveNoun11() public {
+        endAuction();
         // assertEq(nouns.ownerOf(noun11, address(bid));
     }
 
