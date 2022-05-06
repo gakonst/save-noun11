@@ -41,8 +41,7 @@ contract ContractTest is Test {
             Structs.AddressAndAmount({ addr: rentAddress, amount: rentBasisPoints }),
             Structs.AddressAndAmount({ addr: address(0), amount: 0 }),
             "Noun11",
-            "N11",
-            1000
+            "N11"
         );
         bid = PartyBid(_bid);
     }
