@@ -16,21 +16,25 @@ interface FractionalVault {
     function start() payable external;
     function bid() payable external;
     function end() external;
+    function redeem() external;
+
+
 
     function auctionEnd() external view returns (uint256);
     function auctionState() external view returns (State);
-    function winning() external view returns (address);
+
     function reservePrice() external view returns (uint256);
     function livePrice() external view returns (uint256);
+    function id() external view returns (uint256);
+
+    function winning() external view returns (address);
+    function curator() external view returns (address);
 }
 
 interface FractionalSettings {
     function minBidIncrease() external view returns (uint256);
+    function feeReceiver() external view returns (address);
 }
-
-// WETH
-// address public constant weth = 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2;
-
 
 contract FractionalMarketWrapper is IMarketWrapper {
     // https://github.com/fractional-company/contracts#mainnet
